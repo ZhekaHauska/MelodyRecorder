@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Music notes</title>
+  </head>
+  <body>
+    <h1>Record your melody</h1>
+    <p>Press "Record" and sing any song for 10 seconds and it will be converted to a midi.</p>
+    <script src={{ url_for('static', filename='recorder.js') }}></script>
+    <button id="action" onclick="handleAction()">Record</button>
+    <h1>Melodies</h1>
+    {% for melody in notes %}
+        <p>
+            <audio controls src={{ melody.filename }}>
+            </audio>
+        </p>
+    {% endfor %}
+  </body>
+</html>

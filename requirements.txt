@@ -1,0 +1,6 @@
+librosa
+flask
+numpy
+redis
+MIDIUtil
+midi2audio
