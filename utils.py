@@ -27,24 +27,24 @@ def get_notes(filename, duration):
     borders = np.hstack([silence.reshape(1, -1), onsets_filtered.reshape(1, -1)])[0]
     borders = np.sort(borders)
     # get frequencies and aggregate them
-    mel = librosa.feature.melspectrogram(harmonic, fmin=fmin,
-                                         fmax=fmax, n_mels=n_bins)
-    mel_sync = librosa.util.sync(mel, borders, aggregate=np.max)
+    pitches, magnitudes = librosa.piptrack(harmonic, sr=sr,
+                                           fmin=fmin,
+                                           fmax=fmax)
+    freq = pitches.max(axis=-1)
+    bins = np.argmax(magnitudes, axis=0)
+    bins_sync = librosa.util.sync(bins, borders, aggregate=np.median)
     states_sync = librosa.util.sync(states, borders)
-    mel_filtered_sync = mel_sync * states_sync
-    mel_notes = np.argmax(mel_filtered_sync, axis=0)
+    pitch_sync = freq[bins_sync]
     # get notation and midi keys
-    mel_freq = librosa.mel_frequencies(n_mels=n_bins, fmin=fmin,
-                                       fmax=fmax)
-    notes = librosa.hz_to_note((mel_freq[mel_notes] + mel_freq[mel_notes+1])*0.5)
-    midi = list(librosa.hz_to_midi((mel_freq[mel_notes] + mel_freq[mel_notes+1])*0.5))
+    notes = librosa.hz_to_note(pitch_sync)
+    midi = list(librosa.hz_to_midi(pitch_sync))
     # check pauses
-    pauses = np.nonzero(mel_filtered_sync.mean(axis=0) == 0)[0]
+    pauses = np.nonzero(states_sync == 0)[0]
     for x in list(pauses):
         notes[int(x)] = 'P'
         midi[int(x)] = 'P'
     # add borders to borders and define notes lengths
-    borders = np.append(borders, mel.shape[-1])
+    borders = np.append(borders, pitches.shape[-1])
     borders = np.concatenate([np.array([0]), borders])
     lengths = borders[1:] - borders[:-1]
 
@@ -83,4 +83,4 @@ def get_notes(filename, duration):
 
 
 if __name__ == '__main__':
-    get_notes('melodies/melody_14.wav', 10)
+    get_notes('melodies/melody_4.wav', 10)
