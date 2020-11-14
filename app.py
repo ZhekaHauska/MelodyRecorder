@@ -6,6 +6,11 @@ import os
 
 app = Flask(__name__)
 
+try:
+    os.mkdir('tmp')
+except FileExistsError:
+    pass
+
 
 @app.route('/tmp/<filename>')
 def tmp(filename):
