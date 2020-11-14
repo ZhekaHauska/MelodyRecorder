@@ -2,7 +2,12 @@ import librosa
 import numpy as np
 from midiutil import MIDIFile
 from midi2audio import FluidSynth
-from flask import url_for
+
+c_scales = {'major': [0, 2, 4, 5, 7, 9, 11],
+            'minor': [0, 2, 3, 5, 7, 8, 10]}
+notes_to_numbers = {'C': 0, 'C♯': 1, 'D': 2, 'D♯': 3, 'E': 4, 'F': 5, 'F♯': 6, 'G': 7, 'G♯': 8, 'A': 9, 'A♯': 10,
+                    'B': 11}
+numbers_to_notes = {value: key for key, value in notes_to_numbers.items()}
 
 
 def get_notes(filename, duration):
@@ -33,8 +38,9 @@ def get_notes(filename, duration):
     freq = pitches.max(axis=-1)
     bins = np.argmax(magnitudes, axis=0)
     bins_sync = librosa.util.sync(bins, borders, aggregate=np.median)
-    states_sync = librosa.util.sync(states, borders)
+    states_sync = librosa.util.sync(states, borders, aggregate=np.median)
     pitch_sync = freq[bins_sync]
+    pitch_sync[pitch_sync == 0] = 1e-6
     # get notation and midi keys
     notes = librosa.hz_to_note(pitch_sync)
     midi = list(librosa.hz_to_midi(pitch_sync))
@@ -54,8 +60,15 @@ def get_notes(filename, duration):
                   lengths=list(lengths),
                   midi=midi,
                   bpm=bpm,
-                  duration=duration)
+                  duration=duration,
+                  raw_filename=filename.split('/')[-1])
+
+    return melody
+
+
+def to_midi_wav(melody):
     # convert to midi
+    filename = melody['raw_filename']
     k = melody['duration'] * melody['bpm'] / (np.array(melody['lengths']).sum() * 60)
 
     time = 0
@@ -68,19 +81,80 @@ def get_notes(filename, duration):
     my_midi.addProgramChange(track, channel, time, 0)
 
     for i, pitch in enumerate(melody['midi']):
-        if pitch != 'P':
-            my_midi.addNote(track, channel, int(pitch), time, k * melody['lengths'][i], volume)
+        length = k * melody['lengths'][i]
+        if pitch != 'P' and 0 <= pitch <= 255 and length >= 1/16:
+            my_midi.addNote(track, channel, round(pitch), time, length, volume)
         time = time + k * melody['lengths'][i]
 
-    with open(filename.split('.')[0] + '.mid', "wb") as output_file:
+    midi_filename = 'tmp/' + filename.split('.')[0] + '.mid'
+    with open(midi_filename, "wb") as output_file:
         my_midi.writeFile(output_file)
+
     # convert back to wav
+    filename_processed = 'tmp/'+ filename.split('.')[0] + '_processed' + '.wav'
     fs = FluidSynth('static/Drama Piano.sf2')
-    processed_filename = filename.split('.')[0] + '_processed' + '.wav'
-    fs.midi_to_audio(filename.split('.')[0] + '.mid', 'static/' + processed_filename)
-    melody['filename'] = url_for('static', filename=processed_filename)
+    fs.midi_to_audio(midi_filename, filename_processed)
+
+
+def fix_notes(melody):
+    # generate scales
+    notes_numbers = [notes_to_numbers[x[:-1]] for x in melody['notes'] if x != 'P']
+    current_notes = set(notes_numbers)
+    # %%
+    possible_scales = list()
+    for note in current_notes:
+        for scale in generate_scales(note):
+            possible_scales.append((scale, len(current_notes.intersection(scale))))
+
+    possible_scales = sorted(possible_scales, key=lambda x: x[1], reverse=True)
+    max_intersection = possible_scales[0][1]
+
+    possible_scales = list(filter(lambda x: x[1] == max_intersection, possible_scales))
+
+    substitutions = list()
+    for scale, _ in possible_scales:
+        wrong_notes = current_notes.difference(scale)
+        loss = 0
+        substitution = dict()
+        for wrong_note in wrong_notes:
+            scale = np.array(list(scale))
+            differences = np.abs(scale - wrong_note) % 12
+            loss += np.min(differences) * np.count_nonzero(
+                wrong_note == np.array(notes_numbers))
+            substitution[wrong_note] = scale[np.argmin(differences)]
+        substitutions.append((substitution, loss))
+
+    substitutions = sorted(substitutions, key=lambda x: x[1])
+
+    best_substitution = substitutions[0][0]
+
+    fixed_notes = list()
+    for note in melody['notes']:
+        if note != 'P':
+            if notes_to_numbers[note[:-1]] in best_substitution.keys():
+                key = notes_to_numbers[note[:-1]]
+                fixed_notes.append(numbers_to_notes[best_substitution[key]] + note[-1])
+            else:
+                fixed_notes.append(note)
+        else:
+            fixed_notes.append(note)
+
+    midi = [librosa.note_to_midi(x) if x != 'P' else x for x in fixed_notes]
+
+    melody['notes'] = fixed_notes
+    melody['midi'] = midi
     return melody
 
 
+def generate_scales(base_note):
+    scales = list()
+    for base_scale in c_scales.values():
+        scale = (np.array(base_scale) + (base_note - base_scale[0]) % 12) % 12
+        scales.append(set(scale))
+    return scales
+
+
 if __name__ == '__main__':
-    get_notes('melodies/melody_4.wav', 10)
+    melody = get_notes('tmp/melody_0.wav', 10)
+    melody = fix_notes(melody)
+    to_midi_wav(melody)

@@ -1,9 +1,15 @@
-from flask import Flask, request, url_for, render_template, g, redirect
+from flask import Flask, request, url_for, render_template, g, redirect, send_from_directory
 import redis
 import pickle
 import utils
+import os
 
 app = Flask(__name__)
+
+
+@app.route('/tmp/<filename>')
+def tmp(filename):
+    return send_from_directory('tmp', filename)
 
 
 def get_db():
@@ -19,14 +25,20 @@ def get_db():
 def process():
     redis_db = get_db()
     mel_id = int(redis_db.get('mel_id'))
-    filename = f'melodies/melody_{mel_id}.wav'
-    with open(filename, 'wb') as file:
+    filename = f'melody_{mel_id}.wav'
+    with open('tmp/' + filename, 'wb') as file:
         file.write(request.data)
 
-    note = utils.get_notes(filename=filename, duration=10)
-    note['id'] = mel_id
-    redis_db.set(f'melody_{mel_id}', value=pickle.dumps(note))
-    redis_db.set('mel_id', (mel_id + 1))
+    melody = utils.get_notes(filename='tmp/' + filename, duration=10)
+    if len(melody['notes']) != 0:
+        melody = utils.fix_notes(melody)
+
+        melody['id'] = mel_id
+        melody['midi_filename'] = filename.split('.')[0] + '.mid'
+        melody['proc_filename'] = filename.split('.')[0] + '_processed' + '.wav'
+
+        redis_db.set(f'melody_{mel_id}', value=pickle.dumps(melody))
+        redis_db.set('mel_id', (mel_id + 1))
     return redirect(url_for('index'))
 
 
@@ -34,9 +46,12 @@ def process():
 def index():
     redis_db = get_db()
     notes = list()
+    files = os.listdir('tmp/')
     for x in redis_db.scan_iter(match='melody_*'):
         melody = pickle.loads(redis_db.get(x))
         notes.append(melody)
+        if (melody['raw_filename'].split('.')[0] + '_processed.wav') not in files:
+            utils.to_midi_wav(melody)
 
     notes = sorted(notes, key=lambda x: x['id'], reverse=True)
 
@@ -44,4 +59,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)

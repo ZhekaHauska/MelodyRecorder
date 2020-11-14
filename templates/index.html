@@ -10,9 +10,20 @@
     <button id="action" onclick="handleAction()">Record</button>
     <h1>Melodies</h1>
     {% for melody in notes %}
+        <h3>Melody №{{ melody.id }}</h3>
         <p>
-            <audio controls src={{ melody.filename }}>
+                 Raw recording | Processed
+        </p>
+        <p>
+            <audio controls src={{ url_for('tmp', filename=melody.raw_filename) }}>
             </audio>
+
+
+            <audio controls src={{ url_for('tmp', filename=melody.proc_filename) }}>
+            </audio>
+
+
+            <a href={{ url_for('tmp', filename=melody.midi_filename) }} download>download midi</a>
         </p>
     {% endfor %}
   </body>

@@ -1,7 +1,3 @@
-/melodies/*
-/static/melodies/*
+/tmp/*
 /.idea/*
-/notes.ipynb
 /.ipynb_checkpoints/notes-checkpoint.ipynb
-/output.wav
-/major-scale.mid
