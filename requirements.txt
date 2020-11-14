@@ -4,3 +4,5 @@ numpy
 redis
 MIDIUtil
 midi2audio
+audioread
+SoundFile

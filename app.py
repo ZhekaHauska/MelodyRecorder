@@ -19,7 +19,7 @@ def tmp(filename):
 
 def get_db():
     if not hasattr(g, 'redis_db'):
-        g.redis_db = redis.Redis()
+        g.redis_db = redis.Redis(host='redis')
         if not g.redis_db.exists('mel_id'):
             mel_id = 0
             g.redis_db.set('mel_id', mel_id)
@@ -64,4 +64,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
