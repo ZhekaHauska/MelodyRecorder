@@ -18,8 +18,8 @@ def get_notes(filename, duration):
     onsets = librosa.onset.onset_detect(y)
     harmonic = librosa.effects.harmonic(y)
     # get silence states
-    rms = librosa.feature.rms(y=y)[0]
-    r_normalized = (rms - 0.01) / np.std(rms)
+    rms = librosa.feature.rms(y=harmonic)[0]
+    r_normalized = (rms - 0.01) / (np.std(rms) + 1e-9)
     p = np.exp(r_normalized) / (1 + np.exp(r_normalized))
     transition = librosa.sequence.transition_loop(2, [0.5, 0.6])
     full_p = np.vstack([1 - p, p])
@@ -49,6 +49,10 @@ def get_notes(filename, duration):
     for x in list(pauses):
         notes[int(x)] = 'P'
         midi[int(x)] = 'P'
+    # check wrong notes
+    for i, note in enumerate(notes):
+        if note[:-1] not in notes_to_numbers.keys():
+            notes[i] = 'P'
     # add borders to borders and define notes lengths
     borders = np.append(borders, pitches.shape[-1])
     borders = np.concatenate([np.array([0]), borders])
@@ -155,6 +159,6 @@ def generate_scales(base_note):
 
 
 if __name__ == '__main__':
-    melody = get_notes('tmp/melody_0.wav', 10)
+    melody = get_notes('tmp/melody_2.wav', 10)
     melody = fix_notes(melody)
     to_midi_wav(melody)
