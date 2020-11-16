@@ -15,8 +15,8 @@ def get_notes(filename, duration):
     fmin = 73
     fmax = 1108
     n_bins = 256
-    onsets = librosa.onset.onset_detect(y)
     harmonic = librosa.effects.harmonic(y)
+    onsets = librosa.onset.onset_detect(harmonic)
     # get silence states
     rms = librosa.feature.rms(y=harmonic)[0]
     r_normalized = (rms - 0.01) / (np.std(rms) + 1e-9)
@@ -159,6 +159,6 @@ def generate_scales(base_note):
 
 
 if __name__ == '__main__':
-    melody = get_notes('tmp/melody_2.wav', 10)
+    melody = get_notes('tmp/melody_5.wav', 10)
     melody = fix_notes(melody)
     to_midi_wav(melody)
